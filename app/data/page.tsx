@@ -250,32 +250,6 @@ export default function DataPage() {
                   // Save to localStorage
                   localStorage.setItem("discovr_data", data);
 
-                  // Get existing threadId from localStorage
-                  const threadId = localStorage.getItem("discovr_thread_id");
-
-                  // Send to OpenAI
-                  const response = await fetch("/api/data/save-text", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      text: data,
-                      threadId,
-                    }),
-                  });
-
-                  if (!response.ok) {
-                    throw new Error("Failed to save text");
-                  }
-
-                  const result = await response.json();
-
-                  // Save new threadId if one was created
-                  if (result.threadId) {
-                    localStorage.setItem("discovr_thread_id", result.threadId);
-                  }
-
                   showMessage("Text Saved!");
                 } catch (error) {
                   console.error("Error saving text:", error);

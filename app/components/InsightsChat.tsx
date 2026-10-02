@@ -20,7 +20,7 @@ export default function InsightsChat() {
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [responseId, setResponseId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
   const chatMessagesRef = useRef<HTMLDivElement>(null);
@@ -108,7 +108,9 @@ export default function InsightsChat() {
       // Get file IDs and context data from localStorage
       const storedFiles = localStorage.getItem("discovr_uploaded_files");
       const fileIds = storedFiles
-        ? JSON.parse(storedFiles).map((file: { fileId: string }) => file.fileId)
+        ? JSON.parse(storedFiles)
+            .map((file: { fileId: string }) => file.fileId)
+            .filter((id: string) => id !== "demo_file_001")
         : [];
 
       // Include the strategy, metrics and data in the message for context
@@ -136,13 +138,14 @@ export default function InsightsChat() {
         },
         body: JSON.stringify({
           message: contextualPrompt,
-          threadId,
+          responseId,
           fileIds,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(failure.error || "Insights are temporarily unavailable.");
       }
 
       const reader = response.body?.getReader();
@@ -154,37 +157,34 @@ export default function InsightsChat() {
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
       let accumulatedMessage = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(5));
-              if (data.error) throw new Error(data.error);
-              if (data.text) {
-                accumulatedMessage += data.text;
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMessage = newMessages[newMessages.length - 1];
-                  if (lastMessage.role === "assistant") {
-                    lastMessage.content = accumulatedMessage;
-                  }
-                  return newMessages;
-                });
-                if (data.threadId) {
-                  setThreadId(data.threadId);
-                }
-              }
-            } catch (e) {
-              console.error("Error parsing SSE data:", e);
+      let completed = false;
+      let buffer = "";
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+          const frames = buffer.split("\n\n");
+          buffer = frames.pop() || "";
+          for (const frame of frames) {
+            const line = frame.split("\n").find(line => line.startsWith("data: "));
+            if (!line) continue;
+            const data = JSON.parse(line.slice(6));
+            if (data.error) throw new Error(data.error);
+            if (data.text) {
+              accumulatedMessage += data.text;
+              setMessages(prev => [...prev.slice(0, -1), { role: "assistant", content: accumulatedMessage }]);
+            }
+            if (data.done) {
+              completed = true;
+              if (data.responseId) setResponseId(data.responseId);
             }
           }
+          if (done) break;
         }
+        if (!completed || !accumulatedMessage.trim()) throw new Error("The insights response was interrupted. Please try again.");
+      } finally {
+        await reader.cancel();
       }
     } catch (error) {
       console.error("Error in sendMessage:", error);
@@ -193,7 +193,7 @@ export default function InsightsChat() {
         {
           role: "assistant",
           content:
-            "Sorry, there was an error processing your request. Please try again.",
+            error instanceof Error ? error.message : "Insights are temporarily unavailable.",
         },
       ]);
     } finally {
@@ -216,7 +216,7 @@ export default function InsightsChat() {
           "Hello! I can help you analyze your research data and develop strategic insights. What would you like to know?",
       },
     ]);
-    setThreadId(null);
+    setResponseId(null);
 
     // Reset scroll tracking
     userHasScrolled.current = false;

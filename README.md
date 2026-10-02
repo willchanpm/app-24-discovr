@@ -106,3 +106,11 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## AI integration
+
+Insights use the OpenAI Responses API. Set `OPENAI_API_KEY` on the server and optionally `OPENAI_MODEL` (defaults to `gpt-4.1-mini`). `OPENAI_ASSISTANT_ID` is no longer used because the Assistants API retired in August 2026. The discovery instructions are versioned in `app/api/insights-chat/route.ts`.
+
+Research text stays in browser storage until included in an insights request. Uploaded files use OpenAI file inputs; demo files are illustrative, and demo research text is included directly in the prompt. New chats use response IDs to retain follow-up context. Old Assistants thread histories cannot be loaded by this integration.
+
+Run `node tests/insights.cjs` for mocked provider regression checks and `npm run build` for production validation.

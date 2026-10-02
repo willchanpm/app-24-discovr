@@ -26,15 +26,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create a new FormData instance for OpenAI
-    const formDataForOpenAI = new FormData();
-    formDataForOpenAI.append("file", file);
-    formDataForOpenAI.append("purpose", "assistants");
-
     // Upload file to OpenAI
     const response = await openai.files.create({
       file: file,
-      purpose: "assistants",
+      purpose: "user_data",
     });
 
     return NextResponse.json({ 
